@@ -196,6 +196,20 @@ class CheckProducts(object):
 
         return response.status_code
 
+
+    def check_dublicate(self, content):
+        token = os.environ.get('TOKEN')
+        headers = {'Authorization': f'Token {token}', 'Content-Type': 'application/json'}
+        r = requests.get(f"http://{os.environ.get('CORE_APP', 'localhost')}:8000/api/events/", headers=headers)
+        if r.status_code == 200:
+            for row in r.json():
+                if row['content'] == str(content):
+                    print(f'request already exist in the event pipeline ', content)
+                    print(f'there is no need to send the request again!!')
+                    return True
+        return False
+
+
     def download_files(self, files):
         self.connect()
         for file_ in files:
@@ -239,13 +253,16 @@ class FtpDataCheck:
                         'date': date_,
                         'event_id': None
                     }
-                    event_id = check_.create_event('ftp-tasks',
-                                                   json.dumps(content),
-                                                   'FTP Checker',
-                                                   check_.rabbit.get_ip())
-                    if event_id:
-                        content['event_id'] = event_id
-                        check_.rabbit.send(message=json.dumps(content))
+
+                    if not check_.check_dublicate(json.dumps(content)):
+                        event_id = check_.create_event('ftp-tasks',
+                                                       json.dumps(content),
+                                                       'FTP Checker',
+                                                       check_.rabbit.get_ip())
+
+                        if event_id:
+                            content['event_id'] = event_id
+                            check_.rabbit.send(message=json.dumps(content))
                 else:
                     print(f'files for {mission} and date {date_} already exist')
 
